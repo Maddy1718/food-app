@@ -1,18 +1,45 @@
-import { useContext, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { ShoppingCart, Moon, Sun, ChevronDown, LayoutGrid, User, ShieldCheck } from "lucide-react";
-import { CartContext } from "../context/CartContext";
-import { ThemeContext } from "../context/ThemeContext";
-import { AuthContext } from "../context/AuthContext";
+import {
+  Link,
+} from "react-router-dom";
 
-export default function Navbar() {
-  const { cartItems } =
-    useContext(CartContext);
+import {
+  useContext,
+} from "react";
+
+import {
+  FaShoppingCart,
+} from "react-icons/fa";
+
+import { CartContext }
+  from "../context/CartContext";
+
+import { ThemeContext }
+  from "../context/ThemeContext";
+
+import { AuthContext }
+  from "../context/AuthContext";
+
+function Navbar() {
+
+  const {
+    cartItems,
+  } = useContext(
+    CartContext
+  );
 
   const {
     darkMode,
     toggleTheme,
-  } = useContext(ThemeContext);
+  } = useContext(
+    ThemeContext
+  );
+
+  const {
+    user,
+    logout,
+  } = useContext(
+    AuthContext
+  );
 
   const totalItems =
     cartItems.reduce(
@@ -21,129 +48,228 @@ export default function Navbar() {
       0
     );
 
+  // ADMIN EMAILS
+  const adminEmails = [
+
+    "mathanes9396@gmail.com",
+  ];
+
+  const isAdmin =
+    user &&
+    adminEmails.includes(
+      user.email
+    );
+
   return (
-    <nav
-      className={`sticky top-0 z-50 backdrop-blur-md border-b ${
-        darkMode
-          ? "bg-[#081028]/95 border-white/10"
-          : "bg-white/95 border-gray-200"
-      }`}
+
+    <div
+      style={{
+        background:
+          darkMode
+            ? "#111827"
+            : "#ffffff",
+
+        padding:
+          "18px 40px",
+
+        display: "flex",
+
+        justifyContent:
+          "space-between",
+
+        alignItems:
+          "center",
+      }}
     >
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        {/* LOGO */}
-        <Link
-          to="/"
-          className="flex items-center gap-3"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center text-white font-bold text-xl shadow-lg">
-            BB
-          </div>
 
-          <div>
-            <h1
-              className={`text-2xl font-bold ${
-                darkMode
-                  ? "text-white"
-                  : "text-black"
-              }`}
-            >
-              BiteBox
-            </h1>
+      <Link
+        to="/"
 
-            <p
-              className={`text-sm ${
-                darkMode
-                  ? "text-gray-400"
-                  : "text-gray-500"
-              }`}
-            >
-              Fast Food Delivery
-            </p>
-          </div>
+        style={{
+          textDecoration:
+            "none",
+
+          color:
+            "#ff6b00",
+
+          fontSize:
+            "32px",
+
+          fontWeight:
+            "bold",
+        }}
+      >
+
+        Foodify
+
+      </Link>
+
+      <div
+        style={{
+          display:
+            "flex",
+
+          gap:
+            "20px",
+
+          alignItems:
+            "center",
+        }}
+      >
+
+        <Link to="/">
+
+          Home
+
         </Link>
 
-        {/* NAV LINKS */}
-        <div className="flex items-center gap-6">
-          <Link
-            to="/"
-            className={`font-semibold hover:text-orange-500 transition ${
-              darkMode
-                ? "text-white"
-                : "text-black"
-            }`}
-          >
-            Home
-          </Link>
+        <Link to="/orders">
 
-          <Link
-            to="/orders"
-            className={`font-semibold hover:text-orange-500 transition ${
-              darkMode
-                ? "text-white"
-                : "text-black"
-            }`}
-          >
-            Orders
-          </Link>
+          Orders
 
-          {/* CART */}
-          <Link
-            to="/cart"
-            className="relative"
-          >
-            <ShoppingCart
-              size={28}
-              className={
-                darkMode
-                  ? "text-white"
-                  : "text-black"
-              }
-            />
+        </Link>
 
-            {totalItems > 0 && (
-              <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+        <Link
+          to="/cart"
+
+          style={{
+            position:
+              "relative",
+          }}
+        >
+
+          <FaShoppingCart />
+
+          {
+            totalItems > 0 && (
+
+              <span
+                style={{
+                  position:
+                    "absolute",
+
+                  top:
+                    "-10px",
+
+                  right:
+                    "-10px",
+
+                  background:
+                    "#ff6b00",
+
+                  color:
+                    "white",
+
+                  borderRadius:
+                    "50%",
+
+                  width:
+                    "20px",
+
+                  height:
+                    "20px",
+
+                  display:
+                    "flex",
+
+                  justifyContent:
+                    "center",
+
+                  alignItems:
+                    "center",
+
+                  fontSize:
+                    "12px",
+                }}
+              >
+
                 {totalItems}
+
               </span>
-            )}
-          </Link>
+            )
+          }
 
-          {/* DARK MODE BUTTON */}
-          <button
-            onClick={toggleTheme}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition ${
-              darkMode
-                ? "bg-[#1e293b] text-yellow-400"
-                : "bg-gray-100 text-black"
-            }`}
-          >
-            {darkMode ? (
-              <Sun size={20} />
-            ) : (
-              <Moon size={20} />
-            )}
-          </button>
+        </Link>
 
-          {/* LOGIN */}
-          <Link to="/login">
-            <button className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-full font-semibold hover:scale-105 transition">
-              Login
-            </button>
-          </Link>
+        {/* ADMIN */}
+        {
+          isAdmin && (
 
-          {/* SIGNUP */}
-          <Link to="/signup">
+            <Link to="/admin">
+
+              Admin
+
+            </Link>
+          )
+        }
+
+        {/* THEME TOGGLE */}
+        <button onClick={toggleTheme} style={{ background: darkMode ? "#374151" : "#e5e7eb", color: darkMode ? "white" : "#111", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}>
+          {darkMode ? "Light" : "Dark"}
+        </button>
+
+        {/* LOGIN/LOGOUT */}
+        {
+          user ? (
+
             <button
-              className={`px-6 py-3 rounded-full font-semibold border transition ${
-                darkMode
-                  ? "border-white/20 text-white hover:bg-white/10"
-                  : "border-gray-300 text-black hover:bg-gray-100"
-              }`}
+              onClick={logout}
+
+              style={{
+                background:
+                  "#ff6b00",
+
+                color:
+                  "white",
+
+                border:
+                  "none",
+
+                padding:
+                  "10px 20px",
+
+                borderRadius:
+                  "10px",
+              }}
             >
-              Signup
+
+              Logout
+
             </button>
-          </Link>
-        </div>
+
+          ) : (
+
+            <Link
+              to="/login"
+
+              style={{
+                background:
+                  "#ff6b00",
+
+                color:
+                  "white",
+
+                padding:
+                  "10px 20px",
+
+                borderRadius:
+                  "10px",
+
+                textDecoration:
+                  "none",
+              }}
+            >
+
+              Login
+
+            </Link>
+          )
+        }
+
       </div>
-    </nav>
+
+    </div>
   );
 }
+
+export default Navbar;

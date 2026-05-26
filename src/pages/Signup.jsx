@@ -1,97 +1,227 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useContext, useState } from "react";
-import Navbar from "../components/Navbar";
-import { AuthContext } from "../context/AuthContext";
-import { ThemeContext } from "../context/ThemeContext";
+import {
+  useState,
+  useContext,
+} from "react";
+
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
+import { AuthContext }
+  from "../context/AuthContext";
 
 function Signup() {
-  const navigate = useNavigate();
-  const { signup } = useContext(AuthContext);
-  const { darkMode } = useContext(ThemeContext);
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const navigate =
+    useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  const {
+    signUp,
+  } = useContext(
+    AuthContext
+  );
 
-    try {
-      const { error } = await signup(name, email, password);
+  const [name,
+    setName] =
+    useState("");
+
+  const [email,
+    setEmail] =
+    useState("");
+
+  const [password,
+    setPassword] =
+    useState("");
+
+  const handleSignup =
+    async (e) => {
+
+      e.preventDefault();
+
+      const {
+        error,
+      } = await signUp(
+
+        name,
+
+        email,
+
+        password
+      );
+
       if (error) {
-        setError(error.message);
-      } else {
-        navigate("/");
-      }
-    } catch {
-      setError("An error occurred while signing up.");
-    }
 
-    setLoading(false);
-  };
+        alert(
+          error.message
+        );
+
+      } else {
+
+        alert(
+          "Signup Successful"
+        );
+
+        navigate("/login");
+      }
+    };
 
   return (
-    <div className={`min-h-screen transition-all duration-300 ${darkMode ? "bg-[#0f172a]" : "bg-[#f3f4f6]"}`}>
-      <Navbar />
-      <div className="max-w-2xl mx-auto px-6 py-16">
-        <div className={`rounded-[40px] shadow-2xl p-10 ${darkMode ? "bg-[#111827] text-white" : "bg-white text-black"}`}>
-          <div className="mb-8">
-            <p className="text-sm uppercase tracking-[0.3em] text-orange-500 font-semibold">Create account</p>
-            <h1 className="mt-4 text-4xl font-black">Signup for BiteBox</h1>
-            <p className="mt-3 text-gray-500 dark:text-gray-400">Enter your details to create a new account.</p>
-          </div>
 
-          {error && <div className="mb-6 rounded-3xl bg-red-50 px-6 py-4 text-red-700">{error}</div>}
+    <div
+      style={{
+        minHeight:
+          "100vh",
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <input
-              type="text"
-              placeholder="Full name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full rounded-3xl border border-gray-200 bg-transparent px-5 py-4 text-lg outline-none transition focus:border-orange-500 dark:border-gray-700 dark:bg-[#0f172a] dark:text-white"
-            />
+        display:
+          "flex",
 
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-3xl border border-gray-200 bg-transparent px-5 py-4 text-lg outline-none transition focus:border-orange-500 dark:border-gray-700 dark:bg-[#0f172a] dark:text-white"
-            />
+        justifyContent:
+          "center",
 
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full rounded-3xl border border-gray-200 bg-transparent px-5 py-4 text-lg outline-none transition focus:border-orange-500 dark:border-gray-700 dark:bg-[#0f172a] dark:text-white"
-            />
+        alignItems:
+          "center",
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-3xl bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4 text-lg font-bold text-white transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Signing up..." : "Signup"}
-            </button>
-          </form>
+        background:
+          "#f5f5f5",
+      }}
+    >
 
-          <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            Already have an account?{' '}
-            <Link className="font-semibold text-orange-500 hover:text-orange-600" to="/login">
-              Login
-            </Link>
-          </p>
+      <form
+
+        onSubmit={
+          handleSignup
+        }
+
+        style={{
+          background:
+            "white",
+
+          padding:
+            "40px",
+
+          borderRadius:
+            "20px",
+
+          width:
+            "400px",
+        }}
+      >
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1>Signup</h1>
+          <Link to="/" style={{ textDecoration: 'none', background: '#e5e7eb', padding: '8px 12px', borderRadius: '8px' }}>Home</Link>
         </div>
-      </div>
+
+        <input
+          type="text"
+          placeholder="Name"
+
+          value={name}
+
+          onChange={(e) =>
+            setName(
+              e.target.value
+            )
+          }
+
+          required
+
+          style={{
+            width: "100%",
+            padding: "15px",
+            marginTop:
+              "20px",
+          }}
+        />
+
+        <input
+          type="email"
+          placeholder="Email"
+
+          value={email}
+
+          onChange={(e) =>
+            setEmail(
+              e.target.value
+            )
+          }
+
+          required
+
+          style={{
+            width: "100%",
+            padding: "15px",
+            marginTop:
+              "20px",
+          }}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+
+          value={password}
+
+          onChange={(e) =>
+            setPassword(
+              e.target.value
+            )
+          }
+
+          required
+
+          style={{
+            width: "100%",
+            padding: "15px",
+            marginTop:
+              "20px",
+          }}
+        />
+
+        <button
+          type="submit"
+
+          style={{
+            width: "100%",
+            padding: "15px",
+            marginTop:
+              "20px",
+
+            background:
+              "#ff6b00",
+
+            color:
+              "white",
+
+            border:
+              "none",
+          }}
+        >
+
+          Signup
+
+        </button>
+
+        <p
+          style={{
+            marginTop:
+              "20px",
+          }}
+        >
+
+          Already have account?
+
+          <Link to="/login">
+
+            Login
+
+          </Link>
+
+        </p>
+
+      </form>
+
     </div>
   );
 }

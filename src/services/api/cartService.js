@@ -1,12 +1,102 @@
 import { supabase } from "../supabase";
 import { fetchMenuItemsByIds } from "./menuService";
 
+const resolveCustomerId = async (customerInfo) => {
+  if (customerInfo == null) {
+    return null;
+  }
+
+  let authId = null;
+  let email = null;
+  let customerIdValue = customerInfo;
+
+  if (typeof customerInfo === "object") {
+    authId = customerInfo.authId;
+    email = customerInfo.email;
+    customerIdValue = authId;
+  }
+
+  if (typeof customerIdValue === "number" || /^\d+$/.test(String(customerIdValue))) {
+    return Number(customerIdValue);
+  }
+
+  if (!customerIdValue) {
+    return null;
+  }
+
+  const { data: customer, error } = await supabase
+    .from("customer")
+    .select("id, auth_id")
+    .eq("auth_id", customerIdValue)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Error resolving customer id:", error);
+    return null;
+  }
+
+  if (!customer) {
+    if (!email) {
+      return null;
+    }
+
+    const { data: customerByEmail, error: emailError } = await supabase
+      .from("customer")
+      .select("id, auth_id")
+      .eq("email", email)
+      .single();
+
+    if (emailError && emailError.code !== "PGRST116") {
+      console.error("Error resolving customer by email:", emailError);
+      return null;
+    }
+
+    if (customerByEmail) {
+      if (!customerByEmail.auth_id) {
+        await supabase
+          .from("customer")
+          .update({ auth_id: customerIdValue })
+          .eq("id", customerByEmail.id);
+      }
+      return customerByEmail.id;
+    }
+
+    const customerName = email.includes("@") ? email.split("@")[0] : email;
+    const { data: createdCustomer, error: createError } = await supabase
+      .from("customer")
+      .insert([
+        {
+          auth_id: customerIdValue,
+          email,
+          customer_name: customerName,
+          role: "customer",
+        },
+      ])
+      .select("id")
+      .single();
+
+    if (createError) {
+      console.error("Error creating missing customer record:", createError);
+      return null;
+    }
+
+    return createdCustomer?.id ?? null;
+  }
+
+  return customer.id;
+};
+
 export const fetchCartByCustomer = async (customerId) => {
   try {
+    const resolvedCustomerId = await resolveCustomerId(customerId);
+    if (!resolvedCustomerId) {
+      return { cart: null, items: [] };
+    }
+
     const { data: cart, error: cartError } = await supabase
       .from("cart")
       .select("*")
-      .eq("customer_id", customerId)
+      .eq("customer_id", resolvedCustomerId)
       .single();
 
     if (cartError) {
@@ -60,9 +150,14 @@ export const fetchCartByCustomer = async (customerId) => {
 
 export const createCartForCustomer = async (customerId) => {
   try {
+    const resolvedCustomerId = await resolveCustomerId(customerId);
+    if (!resolvedCustomerId) {
+      return null;
+    }
+
     const { data, error } = await supabase
       .from("cart")
-      .insert([{ customer_id: customerId }])
+      .insert([{ customer_id: resolvedCustomerId }])
       .select()
       .single();
 

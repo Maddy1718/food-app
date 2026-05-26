@@ -1,294 +1,437 @@
-import {
-  useEffect,
-  useState,
-  useContext,
-} from "react";
-
+import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
+import { supabase } from "../services/supabase";
 
-import { AuthContext } from "../context/AuthContext";
-import { ThemeContext } from "../context/ThemeContext";
-
-import { fetchRestaurants } from "../services/api/restaurantService";
-import { fetchMenuItems } from "../services/api/menuService";
-import { fetchAllOrders, updateOrderStatus } from "../services/api/orderService";
-
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-
-function Admin() {
-  const { isAdmin } = useContext(AuthContext);
-  const { darkMode } = useContext(ThemeContext);
-
-  // DATA
+export default function Admin() {
   const [restaurants, setRestaurants] = useState([]);
 
-  const [items, setItems] =
-    useState([]);
-
-  const [orders, setOrders] =
-    useState([]);
-
-  const fetchData = async () => {
-    try {
-      // RESTAURANTS
-      const restaurantData = await fetchRestaurants();
-      setRestaurants(restaurantData);
-
-      // ITEMS
-      const itemData = await fetchMenuItems();
-      setItems(itemData);
-
-      // ORDERS
-      const orderData = await fetchAllOrders();
-      setOrders(orderData);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-  };
-
-  // FETCH
   useEffect(() => {
-
-    fetchData();
-
+    fetchRestaurants();
   }, []);
 
-  // ANALYTICS
-  const totalRevenue =
-    orders.reduce(
-      (sum, order) =>
-        sum +
-        Number(order.total || 0),
-      0
-    );
+  async function fetchRestaurants() {
+    const { data, error } = await supabase
+      .from("restaurant")
+      .select(`
+        *,
+        items (*)
+      `);
 
-  const analyticsData = [
-    {
-      name: "Restaurants",
-      value: restaurants.length,
-    },
-    {
-      name: "Food Items",
-      value: items.length,
-    },
-    {
-      name: "Orders",
-      value: orders.length,
-    },
-  ];
+    if (!error) {
+      setRestaurants(data);
+    }
+  }
 
-  // UPDATE ORDER STATUS
-  const handleUpdateOrderStatus =
-    async (id, status) => {
-      const result = await updateOrderStatus(id, status);
-      if (result) {
-        fetchData();
-      }
-    };
+  async function updateRestaurant(id, updates) {
+    // updates: object with fields to update
+    await supabase
+      .from("restaurant")
+      .update(updates)
+      .eq("id", id);
 
-  // BLOCK NON ADMIN
-  if (!isAdmin) {
-    return (
-      <MainLayout>
-        <div className={`min-h-[60vh] flex items-center justify-center rounded-[32px] border border-white/10 bg-[#081127] p-12 text-center ${darkMode ? "text-white" : "text-slate-950"}`}>
-          <div>
-            <h2 className="text-4xl font-black mb-4">Access Denied</h2>
-            <p className="text-slate-400">You do not have permission to access the admin panel.</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
+    fetchRestaurants();
+  }
+
+  async function deleteRestaurant(id) {
+    await supabase
+      .from("restaurant")
+      .delete()
+      .eq("id", id);
+
+    fetchRestaurants();
+  }
+
+  async function updateItem(id, name, price) {
+    // update both possible name fields for compatibility
+    await supabase
+      .from("items")
+      .update({
+        name,
+        item_name: name,
+        price,
+      })
+      .eq("id", id);
+
+    fetchRestaurants();
+  }
+
+  async function addRestaurant() {
+    const restaurant_name = prompt("Restaurant name (required)");
+    if (!restaurant_name) return;
+    const cuisine = prompt("Cuisine (optional)");
+    const address = prompt("Address (optional)");
+    const image_url = prompt("Image URL (optional)");
+    const description = prompt("Description (optional)");
+
+    await supabase.from("restaurant").insert([
+      {
+        restaurant_name,
+        cuisine,
+        address,
+        image_url,
+        description,
+      },
+    ]);
+
+    fetchRestaurants();
+  }
+
+  async function addItemToRestaurant(restaurantId) {
+    const item_name = prompt("Item name (required)");
+    if (!item_name) return;
+    const priceStr = prompt("Price (required)");
+    const price = Number(priceStr) || 0;
+    const description = prompt("Description (optional)");
+    const image_url = prompt("Image URL (optional)");
+    const category = prompt("Category (optional)");
+    const is_veg = confirm("Is this item vegetarian? OK = Yes, Cancel = No") ? true : false;
+
+    await supabase.from("items").insert([
+      {
+        item_name,
+        name: item_name,
+        price,
+        description,
+        image_url,
+        category,
+        is_veg,
+        restaurant_id: restaurantId,
+      },
+    ]);
+
+    fetchRestaurants();
   }
 
   return (
     <MainLayout>
-      <div className={`min-h-screen py-10 ${darkMode ? "bg-[#071028] text-white" : "bg-[#f8fafc] text-slate-900"}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* TITLE */}
-        <h1 className="text-4xl font-bold mb-10">
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#f4f4f4",
+          padding: "30px",
+        }}
+      >
 
-          Admin Dashboard
-
+        <h1
+          style={{
+            fontSize: "36px",
+            fontWeight: "700",
+            marginBottom: "30px",
+            color: "#111",
+          }}
+        >
+          Manage Restaurants
         </h1>
 
-        {/* ANALYTICS */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
-
-          {/* REVENUE */}
-          <div className={`rounded-3xl p-8 shadow-sm ${darkMode ? "bg-slate-900/80 border border-white/10" : "bg-white"}`}>
-            <p className={`${darkMode ? "text-slate-400" : "text-gray-500"}`}>
-              Total Revenue
-            </p>
-            <h2 className="text-4xl font-bold mt-3 text-orange-500">
-              ₹ {totalRevenue}
-            </h2>
-          </div>
-
-          {/* ORDERS */}
-          <div className={`rounded-3xl p-8 shadow-sm ${darkMode ? "bg-slate-900/80 border border-white/10" : "bg-white"}`}>
-            <p className={`${darkMode ? "text-slate-400" : "text-gray-500"}`}>
-              Total Orders
-            </p>
-            <h2 className="text-4xl font-bold mt-3">
-              {orders.length}
-            </h2>
-          </div>
-
-          {/* RESTAURANTS */}
-          <div className={`rounded-3xl p-8 shadow-sm ${darkMode ? "bg-slate-900/80 border border-white/10" : "bg-white"}`}>
-            <p className={`${darkMode ? "text-slate-400" : "text-gray-500"}`}>
-              Restaurants
-            </p>
-            <h2 className="text-4xl font-bold mt-3">
-              {restaurants.length}
-            </h2>
-          </div>
-
-          {/* ITEMS */}
-          <div className={`rounded-3xl p-8 shadow-sm ${darkMode ? "bg-slate-900/80 border border-white/10" : "bg-white"}`}>
-            <p className={`${darkMode ? "text-slate-400" : "text-gray-500"}`}>
-              Food Items
-            </p>
-            <h2 className="text-4xl font-bold mt-3">
-              {items.length}
-            </h2>
-          </div>
-
-        </div>
-
-        {/* CHART */}
-        <div className={`rounded-3xl shadow-sm p-8 mb-16 ${darkMode ? "bg-slate-900/80 border border-white/10" : "bg-white"}`}>
-          <h2 className="text-3xl font-bold mb-8">Platform Analytics</h2>
-          <div className="h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analyticsData}>
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#f97316" radius={[10, 10, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+          <div style={{ fontSize: "20px", fontWeight: 600 }}>Restaurants ({restaurants.length})</div>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button onClick={addRestaurant} style={{ background: "#10b981", color: "white", border: "none", padding: "10px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}>Add Restaurant</button>
           </div>
         </div>
 
-        {/* ORDERS */}
-        <div className={`rounded-3xl shadow-sm p-8 mb-16 ${darkMode ? "bg-slate-900/80 border border-white/10" : "bg-white"}`}>
-          <h2 className="text-3xl font-bold mb-8">Orders</h2>
-          <div className="space-y-6">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(350px, 1fr))",
+            gap: "25px",
+          }}
+        >
 
-            {
-              orders.map((order) => (
+          {restaurants.map((restaurant) => (
+
+            <div
+              key={restaurant.id}
+              style={{
+                background: "#fff",
+                borderRadius: "20px",
+                overflow: "hidden",
+                boxShadow:
+                  "0 4px 20px rgba(0,0,0,0.08)",
+              }}
+            >
+
+              {/* IMAGE */}
+
+              <img
+                src={
+                  restaurant.image_url ||
+                  restaurant.image ||
+                  "https://images.unsplash.com/photo-1504674900247-0877df9cc836"
+                }
+                alt={restaurant.restaurant_name || restaurant.name || `Restaurant ${restaurant.id}`}
+                style={{
+                  width: "100%",
+                  height: "220px",
+                  objectFit: "cover",
+                }}
+              />
+
+              {/* CONTENT */}
+
+              <div
+                style={{
+                  padding: "20px",
+                }}
+              >
+
+                {/* NAME */}
+
+                <h2
+                  style={{
+                    fontSize: "28px",
+                    fontWeight: "700",
+                    color: "#111",
+                    marginBottom: "6px",
+                  }}
+                >
+                  {restaurant.restaurant_name || restaurant.name || `Restaurant ${restaurant.id}`}
+                </h2>
+
+                {/* CUISINE */}
+
+                <p
+                  style={{
+                    color: "#555",
+                    marginBottom: "10px",
+                    fontSize: "16px",
+                  }}
+                >
+                  {restaurant.cuisine}
+                </p>
+
+                {/* RATING */}
+
+                <p
+                  style={{
+                    color: "#111",
+                    fontWeight: "600",
+                    marginBottom: "18px",
+                    fontSize: "16px",
+                  }}
+                >
+                  ⭐ {restaurant.rating}
+                </p>
+
+                {/* MENU SECTION */}
 
                 <div
-                  key={order.id}
-                  className={`rounded-3xl p-6 ${darkMode ? "border border-white/10 bg-slate-950/80" : "border bg-white"}`}
+                  style={{
+                    background: "#f7f7f7",
+                    padding: "15px",
+                    borderRadius: "12px",
+                    marginBottom: "20px",
+                  }}
                 >
 
-                  <div className="flex items-center justify-between">
+                  <h3
+                    style={{
+                      marginBottom: "15px",
+                      color: "#111",
+                    }}
+                  >
+                    Menu Items
+                  </h3>
 
-                    <div>
+                  {restaurant.items &&
+                  restaurant.items.length > 0 ? (
 
-                      <h3 className="text-2xl font-bold">
+                    restaurant.items.map((item) => (
 
-                        Order #{order.id}
+                      <div
+                        key={item.id}
+                        style={{
+                          background: "#fff",
+                          borderRadius: "10px",
+                          padding: "12px",
+                          marginBottom: "10px",
+                          display: "flex",
+                          justifyContent:
+                            "space-between",
+                          alignItems: "center",
+                          border:
+                            "1px solid #eee",
+                        }}
+                      >
 
-                      </h3>
+                        <div>
 
-                      <p className={`${darkMode ? "text-slate-400" : "text-gray-500"} mt-2`}>
+                          <h4
+                            style={{
+                              color: "#111",
+                              marginBottom: "4px",
+                              fontSize: "18px",
+                            }}
+                          >
+                            {item.item_name || item.name}
+                          </h4>
 
-                        {order.customer_email}
+                          <p
+                            style={{
+                              color: "#444",
+                              fontWeight: "600",
+                            }}
+                          >
+                            ₹ {item.price}
+                          </p>
 
-                      </p>
+                        </div>
 
-                    </div>
+                        <button
+                          onClick={() => {
 
-                    <div className="text-right">
+                            const newName =
+                              prompt(
+                                "Edit Item Name",
+                                item.name
+                              );
 
-                      <p className="text-orange-500 font-bold text-2xl">
+                            const newPrice =
+                              prompt(
+                                "Edit Item Price",
+                                item.price
+                              );
 
-                        ₹ {order.total_price}
+                            if (
+                              !newName ||
+                              !newPrice
+                            )
+                              return;
 
-                      </p>
+                            updateItem(
+                              item.id,
+                              newName,
+                              newPrice
+                            );
+                          }}
+                          style={{
+                            background: "#2563eb",
+                            color: "white",
+                            border: "none",
+                            padding:
+                              "10px 14px",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Edit Item
+                        </button>
 
-                      <p className={`${darkMode ? "text-slate-400" : "text-gray-500"} mt-2`}>
+                      </div>
 
-                        {order.order_status}
+                    ))
 
-                      </p>
+                  ) : (
 
-                    </div>
-
-                  </div>
-
-                  {/* STATUS */}
-                  <div className="flex gap-3 mt-6 flex-wrap">
-
-                    <button
-                      onClick={() =>
-                        updateOrderStatus(
-                          order.id,
-                          "Preparing"
-                        )
-                      }
-                      className="bg-yellow-500 text-white px-5 py-2 rounded-xl"
+                    <p
+                      style={{
+                        color: "#666",
+                      }}
                     >
+                      No menu items found
+                    </p>
 
-                      Preparing
-
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        updateOrderStatus(
-                          order.id,
-                          "Out for Delivery"
-                        )
-                      }
-                      className="bg-blue-500 text-white px-5 py-2 rounded-xl"
-                    >
-
-                      Out for Delivery
-
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        updateOrderStatus(
-                          order.id,
-                          "Delivered"
-                        )
-                      }
-                      className="bg-green-500 text-white px-5 py-2 rounded-xl"
-                    >
-
-                      Delivered
-
-                    </button>
-
-                  </div>
+                  )}
 
                 </div>
-              ))
-            }
 
-          </div>
+                {/* BUTTONS */}
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                  }}
+                >
+
+                  <button
+                    onClick={async () => {
+                      const updatedName = prompt("Restaurant name:", restaurant.restaurant_name || restaurant.name || "");
+                      if (updatedName === null) return;
+                      const cuisine = prompt("Cuisine:", restaurant.cuisine || "");
+                      if (cuisine === null) return;
+                      const address = prompt("Address:", restaurant.address || "");
+                      if (address === null) return;
+                      const image_url = prompt("Image URL:", restaurant.image_url || restaurant.image || "");
+                      if (image_url === null) return;
+                      const description = prompt("Description:", restaurant.description || "");
+                      if (description === null) return;
+
+                      const updates = {
+                        restaurant_name: updatedName,
+                        name: updatedName,
+                        cuisine,
+                        address,
+                        image_url,
+                        description,
+                      };
+
+                      await updateRestaurant(restaurant.id, updates);
+                    }}
+                    style={{
+                      background: "#2563eb",
+                      color: "#fff",
+                      border: "none",
+                      padding:
+                        "12px 18px",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Edit Restaurant
+                  </button>
+
+                  <button
+                    onClick={() => addItemToRestaurant(restaurant.id)}
+                    style={{
+                      background: "#06b6d4",
+                      color: "#fff",
+                      border: "none",
+                      padding: "12px 18px",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Add Item
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      deleteRestaurant(
+                        restaurant.id
+                      )
+                    }
+                    style={{
+                      background: "red",
+                      color: "#fff",
+                      border: "none",
+                      padding:
+                        "12px 18px",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Delete
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          ))}
 
         </div>
-
-      </div>
 
       </div>
 
     </MainLayout>
   );
 }
-
-export default Admin;

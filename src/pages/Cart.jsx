@@ -14,6 +14,7 @@ export default function Cart() {
     cartItems,
     addToCart,
     removeFromCart,
+    decreaseQuantity,
     clearCart,
   } = useContext(CartContext);
 
@@ -169,7 +170,7 @@ export default function Cart() {
                   >
                     <button
                       onClick={() =>
-                        removeFromCart(
+                        decreaseQuantity(
                           item.id
                         )
                       }

@@ -36,23 +36,27 @@ function CartProvider({ children }) {
         return;
       }
 
+      const userRef = { authId: user.id, email: user.email };
       setLoadingCart(true);
       try {
-        const { items } = await fetchCartByCustomer(user.id);
+        const { items } = await fetchCartByCustomer(userRef);
         const savedCart = localStorage.getItem("cartItems");
         const localCart = savedCart ? JSON.parse(savedCart) : [];
 
-        if (items.length > 0 || localCart.length === 0) {
+        if (items.length > 0) {
           setCartItems(items);
-        } else {
+        } else if (localCart.length > 0) {
+          setCartItems(localCart);
           for (const item of localCart) {
-            await addCartItem(user.id, item, item.quantity || 1);
+            await addCartItem(userRef, item, item.quantity || 1);
           }
-          const updated = await fetchCartByCustomer(user.id);
-          setCartItems(updated.items);
+        } else {
+          setCartItems([]);
         }
       } catch (err) {
         console.error("Error loading cart:", err);
+        const savedCart = localStorage.getItem("cartItems");
+        setCartItems(savedCart ? JSON.parse(savedCart) : []);
       } finally {
         setLoadingCart(false);
       }
@@ -62,85 +66,89 @@ function CartProvider({ children }) {
   }, [user]);
 
   const addToCart = async (item) => {
+    const existingItem = cartItems.find(
+      (cartItem) => cartItem.id === item.id
+    );
+
+    let updatedCart;
+    if (existingItem) {
+      updatedCart = cartItems.map((cartItem) =>
+        cartItem.id === item.id
+          ? {
+              ...cartItem,
+              quantity: cartItem.quantity + 1,
+              total_price:
+                (cartItem.total_price || 0) +
+                (cartItem.price || item.price || 0),
+            }
+          : cartItem
+      );
+    } else {
+      updatedCart = [
+        ...cartItems,
+        {
+          ...item,
+          quantity: 1,
+          total_price: item.price || 0,
+        },
+      ];
+    }
+
+    setCartItems(updatedCart);
+
     if (user?.id) {
-      const result = await addCartItem(user.id, item, 1);
+      const result = await addCartItem({ authId: user.id, email: user.email }, item, 1);
       if (result?.items) {
         setCartItems(result.items);
       }
       return;
     }
-
-    const existingItem = cartItems.find(
-      (cartItem) => cartItem.id === item.id
-    );
-
-    if (existingItem) {
-      setCartItems(
-        cartItems.map((cartItem) =>
-          cartItem.id === item.id
-            ? {
-                ...cartItem,
-                quantity: cartItem.quantity + 1,
-                total_price:
-                  (cartItem.total_price || 0) +
-                  (cartItem.price || item.price || 0),
-              }
-            : cartItem
-        )
-      );
-      return;
-    }
-
-    setCartItems([
-      ...cartItems,
-      {
-        ...item,
-        quantity: 1,
-        total_price: item.price || 0,
-      },
-    ]);
   };
 
   const removeFromCart = async (id) => {
     const selectedItem = cartItems.find((item) => item.id === id);
 
+    const updatedCart = cartItems.filter((item) => item.id !== id);
+    setCartItems(updatedCart);
+
     if (user?.id && selectedItem?.cartItemId) {
-      await removeCartItem(selectedItem.cartItemId);
-      const { items } = await fetchCartByCustomer(user.id);
-      setCartItems(items);
+      const result = await removeCartItem(selectedItem.cartItemId);
+      if (result) {
+        const { items } = await fetchCartByCustomer({ authId: user.id, email: user.email });
+        setCartItems(items);
+      }
       return;
     }
-
-    setCartItems(cartItems.filter((item) => item.id !== id));
   };
 
   const increaseQuantity = async (id) => {
     const selectedItem = cartItems.find((item) => item.id === id);
     if (!selectedItem) return;
 
+    const updatedCart = cartItems.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            quantity: item.quantity + 1,
+            total_price:
+              (item.total_price || 0) +
+              (item.price || 0),
+          }
+        : item
+    );
+    setCartItems(updatedCart);
+
     if (user?.id && selectedItem?.cartItemId) {
-      await updateCartItemQuantity(
+      const result = await updateCartItemQuantity(
         selectedItem.cartItemId,
         selectedItem.quantity + 1
       );
-      const { items } = await fetchCartByCustomer(user.id);
-      setCartItems(items);
+      if (result) {
+        const { items } = await fetchCartByCustomer({ authId: user.id, email: user.email });
+        setCartItems(items);
+      }
       return;
     }
-
-    setCartItems(
-      cartItems.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-              total_price:
-                (item.total_price || 0) +
-                (item.price || 0),
-            }
-          : item
-      )
-    );
   };
 
   const decreaseQuantity = async (id) => {
@@ -148,6 +156,20 @@ function CartProvider({ children }) {
     if (!selectedItem) return;
 
     const newQuantity = selectedItem.quantity - 1;
+    const updatedCart = cartItems
+      .map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              quantity: item.quantity - 1,
+              total_price:
+                (item.total_price || 0) -
+                (item.price || 0),
+            }
+          : item
+      )
+      .filter((item) => item.quantity > 0);
+    setCartItems(updatedCart);
 
     if (user?.id && selectedItem?.cartItemId) {
       if (newQuantity <= 0) {
@@ -158,35 +180,18 @@ function CartProvider({ children }) {
           newQuantity
         );
       }
-      const { items } = await fetchCartByCustomer(user.id);
+      const { items } = await fetchCartByCustomer({ authId: user.id, email: user.email });
       setCartItems(items);
       return;
     }
-
-    setCartItems(
-      cartItems
-        .map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                quantity: item.quantity - 1,
-                total_price:
-                  (item.total_price || 0) -
-                  (item.price || 0),
-              }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
   };
 
   const clearCart = async () => {
+    setCartItems([]);
     if (user?.id) {
-      await clearCartService(user.id);
-      setCartItems([]);
+      await clearCartService({ authId: user.id, email: user.email });
       return;
     }
-    setCartItems([]);
   };
 
   return (

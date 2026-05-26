@@ -1,122 +1,162 @@
-﻿/* eslint-disable react-refresh/only-export-components */
-import {
+﻿import {
   createContext,
   useEffect,
   useState,
 } from "react";
 
-import { supabase } from "../services/supabase";
+import { supabase }
+  from "../services/supabase";
 
-export const AuthContext = createContext();
+export const AuthContext =
+  createContext();
 
-const ADMIN_EMAILS = [
-  "mathanes9396@gmail.com",
-];
+function AuthProvider({
+  children,
+}) {
 
-async function resolveAdminStatus(user) {
-  if (!user) return false;
+  const [user,
+    setUser] =
+    useState(null);
 
-  if (user.app_metadata?.role === "admin" || user.user_metadata?.role === "admin") {
-    return true;
-  }
+  const [loading,
+    setLoading] =
+    useState(true);
 
-  if (ADMIN_EMAILS.includes(user.email)) {
-    return true;
-  }
-
-  try {
-    const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (!error && data?.role === "admin") {
-      return true;
-    }
-  } catch (err) {
-    console.warn("Profile role check skipped:", err);
-  }
-
-  return false;
-}
-
-function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-
+  // GET CURRENT USER
   useEffect(() => {
-    let mounted = true;
 
-    const loadSession = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const sessionUser = data.session?.user ?? null;
-        if (!mounted) return;
+    // SESSION
+    supabase.auth
+      .getSession()
 
-        setUser(sessionUser);
-        setIsAdmin(await resolveAdminStatus(sessionUser));
-      } catch (err) {
-        console.warn("Failed to load Supabase session:", err);
-        if (!mounted) return;
-        setUser(null);
-        setIsAdmin(false);
-      } finally {
-        if (mounted) {
-          setLoading(false);
+      .then(({ data }) => {
+
+        setUser(
+          data.session?.user || null
+        );
+
+        setLoading(false);
+      });
+
+    // LISTENER
+    const {
+
+      data: listener,
+
+    } = supabase.auth
+      .onAuthStateChange(
+        (_event, session) => {
+
+          setUser(
+            session?.user || null
+          );
         }
-      }
-    };
-
-    loadSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const sessionUser = session?.user ?? null;
-      if (!mounted) return;
-      setUser(sessionUser);
-      setIsAdmin(await resolveAdminStatus(sessionUser));
-    });
+      );
 
     return () => {
-      mounted = false;
-      listener?.subscription?.unsubscribe();
+
+      listener.subscription.unsubscribe();
     };
+
   }, []);
 
-  const login = async (email, password) => {
-    return await supabase.auth.signInWithPassword({
+  // SIGNUP
+  const signUp =
+    async (
+      name,
       email,
-      password,
-    });
-  };
+      password
+    ) => {
 
-  const signup = async (name, email, password) => {
-    return await supabase.auth.signUp({
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase.auth
+        .signUp({
+
+          email,
+
+          password,
+        });
+
+      if (error) {
+
+        return {
+          error,
+        };
+      }
+
+      // INSERT INTO CUSTOMER TABLE
+      await supabase
+        .from("customer")
+        .insert([
+
+          {
+            customer_name:
+              name,
+
+            email:
+              email,
+
+            auth_id:
+              data.user.id,
+
+            role:
+              "customer",
+          },
+        ]);
+
+      return {
+        data,
+      };
+    };
+
+  // LOGIN
+  const login =
+    async (
       email,
-      password,
-      options: {
-        data: {
-          full_name: name,
-          role: "user",
-        },
-      },
-    });
-  };
+      password
+    ) => {
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsAdmin(false);
-  };
+      return await supabase.auth
+        .signInWithPassword({
+
+          email,
+
+          password,
+        });
+    };
+
+  // LOGOUT
+  const logout =
+    async () => {
+
+      await supabase.auth
+        .signOut();
+    };
 
   return (
+
     <AuthContext.Provider
       value={{
+
         user,
+
         loading,
-        isAdmin,
+
+        signUp,
+
         login,
-        signup,
+
         logout,
       }}
     >
+
       {children}
+
     </AuthContext.Provider>
   );
 }
