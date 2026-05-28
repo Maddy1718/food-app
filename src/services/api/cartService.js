@@ -1,317 +1,425 @@
 import { supabase } from "../supabase";
-import { fetchMenuItemsByIds } from "./menuService";
 
-const resolveCustomerId = async (customerInfo) => {
-  if (customerInfo == null) {
-    return null;
-  }
+// NORMALIZE CART ITEM
+const normalizeCartItem = (
+  cartItem = {}
+) => {
 
-  let authId = null;
-  let email = null;
-  let customerIdValue = customerInfo;
+  const item =
+    cartItem.items || {};
 
-  if (typeof customerInfo === "object") {
-    authId = customerInfo.authId;
-    email = customerInfo.email;
-    customerIdValue = authId;
-  }
+  const category =
+    item.category
+      ?.category_name ||
+    "Main Course";
 
-  if (typeof customerIdValue === "number" || /^\d+$/.test(String(customerIdValue))) {
-    return Number(customerIdValue);
-  }
+  return {
+    cartItemId:
+      cartItem.id,
 
-  if (!customerIdValue) {
-    return null;
-  }
+    id:
+      item.id,
 
-  const { data: customer, error } = await supabase
-    .from("customer")
-    .select("id, auth_id")
-    .eq("auth_id", customerIdValue)
-    .single();
+    name:
+      item.item_name ||
+      "",
 
-  if (error && error.code !== "PGRST116") {
-    console.error("Error resolving customer id:", error);
-    return null;
-  }
+    image_url:
+      item.image_url ||
+      "",
 
-  if (!customer) {
-    if (!email) {
-      return null;
-    }
+    description:
+      item.description ||
+      "",
 
-    const { data: customerByEmail, error: emailError } = await supabase
+    price:
+      Number(item.price) || 0,
+
+    quantity:
+      cartItem.quantity || 1,
+
+    total_price:
+      Number(
+        cartItem.total_price
+      ) || 0,
+
+    restaurant_id:
+      item.restaurant_id ||
+      null,
+
+    category,
+  };
+};
+
+// GET CUSTOMER
+const getCustomerId =
+  async ({
+    authId,
+    email,
+  }) => {
+
+    const {
+      data,
+      error,
+    } = await supabase
+
       .from("customer")
-      .select("id, auth_id")
-      .eq("email", email)
-      .single();
 
-    if (emailError && emailError.code !== "PGRST116") {
-      console.error("Error resolving customer by email:", emailError);
-      return null;
-    }
-
-    if (customerByEmail) {
-      if (!customerByEmail.auth_id) {
-        await supabase
-          .from("customer")
-          .update({ auth_id: customerIdValue })
-          .eq("id", customerByEmail.id);
-      }
-      return customerByEmail.id;
-    }
-
-    const customerName = email.includes("@") ? email.split("@")[0] : email;
-    const { data: createdCustomer, error: createError } = await supabase
-      .from("customer")
-      .insert([
-        {
-          auth_id: customerIdValue,
-          email,
-          customer_name: customerName,
-          role: "customer",
-        },
-      ])
       .select("id")
+
+      .or(
+        `auth_id.eq.${authId},email.eq.${email}`
+      )
+
       .single();
 
-    if (createError) {
-      console.error("Error creating missing customer record:", createError);
+    if (error || !data) {
+      console.error(
+        "Customer lookup failed:",
+        error
+      );
+
       return null;
     }
 
-    return createdCustomer?.id ?? null;
-  }
+    return data.id;
+  };
 
-  return customer.id;
-};
+// FETCH CART
+export const fetchCartByCustomer =
+  async ({
+    authId,
+    email,
+  }) => {
 
-export const fetchCartByCustomer = async (customerId) => {
-  try {
-    const resolvedCustomerId = await resolveCustomerId(customerId);
-    if (!resolvedCustomerId) {
-      return { cart: null, items: [] };
-    }
+    try {
 
-    const { data: cart, error: cartError } = await supabase
-      .from("cart")
-      .select("*")
-      .eq("customer_id", resolvedCustomerId)
-      .single();
+      const customerId =
+        await getCustomerId({
+          authId,
+          email,
+        });
 
-    if (cartError) {
-      console.error("Error fetching cart:", cartError);
-      return { cart: null, items: [] };
-    }
+      if (!customerId) {
+        return {
+          items: [],
+        };
+      }
 
-    if (!cart) {
-      return { cart: null, items: [] };
-    }
+      const {
+        data,
+        error,
+      } = await supabase
 
-    const { data: cartItems, error: cartItemError } = await supabase
-      .from("cart_item")
-      .select("*")
-      .eq("cart_id", cart.id);
+        .from("cart")
 
-    if (cartItemError) {
-      console.error("Error fetching cart items:", cartItemError);
-      return { cart, items: [] };
-    }
+        .select(`
+          *,
+          items (
+            *,
+            category (
+              id,
+              category_name
+            )
+          )
+        `)
 
-    const menuItemIds = cartItems.map((row) => row.menu_item_id).filter(Boolean);
-    const menuItems = menuItemIds.length
-      ? await fetchMenuItemsByIds(menuItemIds)
-      : [];
+        .eq(
+          "customer_id",
+          customerId
+        );
 
-    const itemsById = new Map(menuItems.map((item) => [item.id, item]));
+      if (error) {
 
-    const items = cartItems.map((row) => {
-      const menuItem = itemsById.get(row.menu_item_id) || {};
+        console.error(
+          "Error fetching cart:",
+          error
+        );
+
+        return {
+          items: [],
+        };
+      }
+
       return {
-        id: menuItem.id || row.menu_item_id,
-        cartItemId: row.id,
-        menu_item_id: row.menu_item_id,
-        name: menuItem.item_name || menuItem.name || "Item",
-        item_name: menuItem.item_name || menuItem.name || "Item",
-        description: menuItem.description || "",
-        price: row.item_price ?? menuItem.price ?? 0,
-        image_url: menuItem.image_url || menuItem.image || "",
-        quantity: row.quantity,
-        total_price: row.total_price ?? (row.quantity * (row.item_price ?? menuItem.price ?? 0)),
+        items:
+          (data || []).map(
+            normalizeCartItem
+          ),
       };
-    });
 
-    return { cart, items };
-  } catch (err) {
-    console.error("Unexpected error fetching cart by customer:", err);
-    return { cart: null, items: [] };
-  }
-};
+    } catch (err) {
 
-export const createCartForCustomer = async (customerId) => {
-  try {
-    const resolvedCustomerId = await resolveCustomerId(customerId);
-    if (!resolvedCustomerId) {
+      console.error(
+        "Unexpected error fetching cart:",
+        err
+      );
+
+      return {
+        items: [],
+      };
+    }
+  };
+
+// ADD TO CART
+export const addCartItem =
+  async (
+    user,
+    item,
+    quantity = 1
+  ) => {
+
+    try {
+
+      const customerId =
+        await getCustomerId(
+          user
+        );
+
+      if (!customerId)
+        return null;
+
+      // CHECK EXISTING
+      const {
+        data: existing,
+      } = await supabase
+
+        .from("cart")
+
+        .select("*")
+
+        .eq(
+          "customer_id",
+          customerId
+        )
+
+        .eq(
+          "item_id",
+          item.id
+        )
+
+        .maybeSingle();
+
+      // UPDATE EXISTING
+      if (existing) {
+
+        const newQuantity =
+          existing.quantity +
+          quantity;
+
+        const totalPrice =
+          newQuantity *
+          Number(item.price);
+
+        await supabase
+
+          .from("cart")
+
+          .update({
+            quantity:
+              newQuantity,
+            total_price:
+              totalPrice,
+          })
+
+          .eq(
+            "id",
+            existing.id
+          );
+
+      } else {
+
+        // INSERT NEW
+        await supabase
+
+          .from("cart")
+
+          .insert([
+            {
+              customer_id:
+                customerId,
+
+              item_id:
+                item.id,
+
+              quantity,
+
+              total_price:
+                quantity *
+                Number(
+                  item.price
+                ),
+            },
+          ]);
+      }
+
+      return await fetchCartByCustomer(
+        user
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error adding cart item:",
+        err
+      );
+
       return null;
     }
+  };
 
-    const { data, error } = await supabase
-      .from("cart")
-      .insert([{ customer_id: resolvedCustomerId }])
-      .select()
-      .single();
+// UPDATE QUANTITY
+export const updateCartItemQuantity =
+  async (
+    cartItemId,
+    quantity
+  ) => {
 
-    if (error) {
-      console.error("Error creating cart:", error);
-      return null;
-    }
+    try {
 
-    return data;
-  } catch (err) {
-    console.error("Unexpected error creating cart:", err);
-    return null;
-  }
-};
+      const {
+        data: cartItem,
+      } = await supabase
 
-export const addCartItem = async (customerId, menuItem, quantity = 1) => {
-  try {
-    let { cart } = await fetchCartByCustomer(customerId);
-    if (!cart) {
-      cart = await createCartForCustomer(customerId);
-    }
+        .from("cart")
 
-    if (!cart) {
-      return null;
-    }
+        .select(`
+          *,
+          items (*)
+        `)
 
-    const { data: existingItems, error: existingError } = await supabase
-      .from("cart_item")
-      .select("*")
-      .eq("cart_id", cart.id)
-      .eq("menu_item_id", menuItem.id)
-      .single();
+        .eq(
+          "id",
+          cartItemId
+        )
 
-    if (existingError && existingError.code !== "PGRST116") {
-      console.error("Error checking existing cart item:", existingError);
-      return null;
-    }
+        .single();
 
-    if (existingItems) {
-      const updatedQuantity = existingItems.quantity + quantity;
-      const { error: updateError } = await supabase
-        .from("cart_item")
+      if (!cartItem)
+        return null;
+
+      const total_price =
+        Number(
+          cartItem.items
+            ?.price || 0
+        ) * quantity;
+
+      const {
+        error,
+      } = await supabase
+
+        .from("cart")
+
         .update({
-          quantity: updatedQuantity,
-          total_price: updatedQuantity * (existingItems.item_price ?? menuItem.price ?? 0),
-        })
-        .eq("id", existingItems.id);
-
-      if (updateError) {
-        console.error("Error updating cart item quantity:", updateError);
-        return null;
-      }
-    } else {
-      const price = menuItem.price ?? 0;
-      const { error: insertError } = await supabase.from("cart_item").insert([
-        {
-          cart_id: cart.id,
-          menu_item_id: menuItem.id,
           quantity,
-          item_price: price,
-          total_price: quantity * price,
-        },
-      ]);
+          total_price,
+        })
 
-      if (insertError) {
-        console.error("Error inserting cart item:", insertError);
+        .eq(
+          "id",
+          cartItemId
+        );
+
+      if (error) {
+        console.error(error);
         return null;
       }
-    }
 
-    return await fetchCartByCustomer(customerId);
-  } catch (err) {
-    console.error("Unexpected error adding cart item:", err);
-    return null;
-  }
-};
+      return true;
 
-export const updateCartItemQuantity = async (cartItemId, quantity) => {
-  try {
-    if (quantity <= 0) {
-      return await removeCartItem(cartItemId);
-    }
+    } catch (err) {
 
-    const { data: itemRow, error: rowError } = await supabase
-      .from("cart_item")
-      .select("*")
-      .eq("id", cartItemId)
-      .single();
+      console.error(
+        "Unexpected error updating cart:",
+        err
+      );
 
-    if (rowError) {
-      console.error("Error loading cart item:", rowError);
       return null;
     }
+  };
 
-    const unitPrice = itemRow.item_price ?? 0;
-    const { data, error } = await supabase
-      .from("cart_item")
-      .update({ quantity, total_price: quantity * unitPrice })
-      .eq("id", cartItemId)
-      .select();
+// REMOVE ITEM
+export const removeCartItem =
+  async (cartItemId) => {
 
-    if (error) {
-      console.error("Error updating cart item:", error);
+    try {
+
+      const {
+        error,
+      } = await supabase
+
+        .from("cart")
+
+        .delete()
+
+        .eq(
+          "id",
+          cartItemId
+        );
+
+      if (error) {
+        console.error(error);
+        return null;
+      }
+
+      return true;
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error removing cart item:",
+        err
+      );
+
       return null;
     }
+  };
 
-    return data?.[0] || null;
-  } catch (err) {
-    console.error("Unexpected error updating cart item quantity:", err);
-    return null;
-  }
-};
+// CLEAR CART
+export const clearCart =
+  async ({
+    authId,
+    email,
+  }) => {
 
-export const removeCartItem = async (cartItemId) => {
-  try {
-    const { data, error } = await supabase
-      .from("cart_item")
-      .delete()
-      .eq("id", cartItemId)
-      .select();
+    try {
 
-    if (error) {
-      console.error("Error removing cart item:", error);
+      const customerId =
+        await getCustomerId({
+          authId,
+          email,
+        });
+
+      if (!customerId)
+        return null;
+
+      const {
+        error,
+      } = await supabase
+
+        .from("cart")
+
+        .delete()
+
+        .eq(
+          "customer_id",
+          customerId
+        );
+
+      if (error) {
+        console.error(error);
+        return null;
+      }
+
+      return true;
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error clearing cart:",
+        err
+      );
+
       return null;
     }
-
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error removing cart item:", err);
-    return null;
-  }
-};
-
-export const clearCart = async (customerId) => {
-  try {
-    const { cart } = await fetchCartByCustomer(customerId);
-    if (!cart) {
-      return null;
-    }
-
-    const { data, error } = await supabase
-      .from("cart_item")
-      .delete()
-      .eq("cart_id", cart.id)
-      .select();
-
-    if (error) {
-      console.error("Error clearing cart:", error);
-      return null;
-    }
-
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error clearing cart:", err);
-    return null;
-  }
-};
+  };

@@ -1,32 +1,71 @@
-import { useContext, useEffect, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
 import MainLayout from "../layouts/MainLayout";
-import { AuthContext } from "../context/AuthContext";
-import { fetchOrders } from "../services/api/orderService";
+
+import {
+  AuthContext,
+} from "../context/AuthContext";
+
+import {
+  fetchOrders,
+} from "../services/api/orderService";
 
 function Orders() {
-  const { user } = useContext(AuthContext);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
 
+  const { user } =
+    useContext(AuthContext);
+
+  const [orders, setOrders] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  // LOAD ORDERS
   useEffect(() => {
-    const loadOrders = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
 
-      setLoading(true);
-      try {
-        const data = await fetchOrders(user.id || user.email);
-        setOrders(data);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const loadOrders =
+      async () => {
+
+        if (!user) {
+
+          setLoading(false);
+
+          return;
+        }
+
+        try {
+
+          setLoading(true);
+
+          const data =
+            await fetchOrders(
+              user
+            );
+
+          setOrders(
+            data || []
+          );
+
+        } catch (err) {
+
+          console.error(
+            "Orders error:",
+            err
+          );
+
+        } finally {
+
+          setLoading(false);
+        }
+      };
 
     loadOrders();
+
   }, [user]);
 
   return (
@@ -58,104 +97,246 @@ function Orders() {
         </h1>
 
         {!user ? (
-          <div style={{ fontSize: "18px" }}>
+
+          <div
+            style={{
+              fontSize:
+                "18px",
+            }}
+          >
+
             Please login to view your orders
+
           </div>
+
         ) : loading ? (
-          <div style={{ fontSize: "18px" }}>
+
+          <div
+            style={{
+              fontSize:
+                "18px",
+            }}
+          >
+
             Loading orders...
+
           </div>
+
         ) : orders.length === 0 ? (
-          <div style={{ fontSize: "18px" }}>
+
+          <div
+            style={{
+              fontSize:
+                "18px",
+            }}
+          >
+
             No orders found
+
           </div>
+
         ) : (
-          orders.map((order) => {
-            const orderDate = new Date(order.created_at).toLocaleDateString();
-            const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
 
-            return (
-              <div
+          orders.map(
+            (order) => {
 
-                key={order.id}
+              const orderDate =
+                new Date(
+                  order.order_time
+                ).toLocaleString();
 
-                style={{
-                  background:
-                    "white",
+              return (
 
-                  padding:
-                    "25px",
+                <div
+                  key={order.id}
 
-                  borderRadius:
-                    "20px",
-
-                  marginBottom:
-                    "20px",
-
-                  boxShadow:
-                    "0 2px 10px rgba(0,0,0,0.08)",
-                }}
-              >
-
-                <h2>
-
-                  Order #{order.id}
-
-                </h2>
-
-                <p>
-
-                  {orderDate}
-
-                </p>
-
-                <p style={{ marginTop: "10px", fontSize: "16px" }}>
-                  {Array.isArray(items) && items.length > 0 && (
-                    <>
-                      {items.map((item, idx) => (
-                        <div key={idx}>{item.name} x {item.quantity}</div>
-                      ))}
-                    </>
-                  )}
-                </p>
-
-                <p style={{ marginTop: "10px", fontWeight: "bold" }}>
-
-                  ₹ {order.total}
-
-                </p>
-
-                <span
                   style={{
                     background:
-                      order.status === "placed" ? "#ff6b00" : order.status === "Delivered" ? "#16a34a" : "#f59e0b",
-
-                    color:
                       "white",
 
                     padding:
-                      "8px 15px",
+                      "25px",
 
                     borderRadius:
-                      "10px",
+                      "20px",
 
-                    display:
-                      "inline-block",
+                    marginBottom:
+                      "20px",
 
-                    marginTop:
-                      "10px",
+                    boxShadow:
+                      "0 2px 10px rgba(0,0,0,0.08)",
                   }}
                 >
 
-                  {order.status}
+                  {/* TOP */}
+                  <div
+                    style={{
+                      display:
+                        "flex",
 
-                </span>
+                      justifyContent:
+                        "space-between",
 
-              </div>
-            );
-          })
+                      alignItems:
+                        "center",
+
+                      marginBottom:
+                        "20px",
+                    }}
+                  >
+
+                    <div>
+
+                      <h2>
+
+                        Order #
+                        {order.id}
+
+                      </h2>
+
+                      <p>
+                        {orderDate}
+                      </p>
+                    </div>
+
+                    <span
+                      style={{
+                        background:
+                          order.order_status ===
+                          "Delivered"
+                            ? "#16a34a"
+                            : order.order_status ===
+                              "Pending"
+                            ? "#f59e0b"
+                            : "#ff6b00",
+
+                        color:
+                          "white",
+
+                        padding:
+                          "8px 15px",
+
+                        borderRadius:
+                          "10px",
+
+                        fontWeight:
+                          "bold",
+                      }}
+                    >
+
+                      {
+                        order.order_status
+                      }
+
+                    </span>
+                  </div>
+
+                  {/* RESTAURANT */}
+                  <div
+                    style={{
+                      marginBottom:
+                        "20px",
+                    }}
+                  >
+
+                    <h3>
+
+                      {
+                        order
+                          ?.restaurant
+                          ?.restaurant_name
+                      }
+
+                    </h3>
+                  </div>
+
+                  {/* PRICE DETAILS */}
+                  <div
+                    style={{
+                      display:
+                        "grid",
+
+                      gap:
+                        "10px",
+                    }}
+                  >
+
+                    <div>
+                      Food Price:
+                      ₹ {order.price}
+                    </div>
+
+                    <div>
+                      Delivery Fee:
+                      ₹ {order.delivery_fee}
+                    </div>
+
+                    <div>
+                      Platform Fee:
+                      ₹ {order.platform_fee}
+                    </div>
+
+                    <div>
+                      GST:
+                      ₹ {order.gst_amount}
+                    </div>
+
+                    <div>
+                      Packing Charge:
+                      ₹ {order.packing_charge}
+                    </div>
+
+                    <div>
+                      Discount:
+                      ₹ {order.discount}
+                    </div>
+
+                    <div
+                      style={{
+                        fontWeight:
+                          "bold",
+
+                        fontSize:
+                          "20px",
+
+                        marginTop:
+                          "10px",
+                      }}
+                    >
+
+                      Total:
+                      ₹{" "}
+                      {
+                        order.total_price
+                      }
+
+                    </div>
+                  </div>
+
+                  {/* ADDRESS */}
+                  <div
+                    style={{
+                      marginTop:
+                        "20px",
+                    }}
+                  >
+
+                    <strong>
+                      Delivery Address:
+                    </strong>
+
+                    <p>
+                      {
+                        order.delivery_address
+                      }
+                    </p>
+                  </div>
+
+                </div>
+              );
+            }
+          )
         )}
-
       </div>
 
     </MainLayout>

@@ -1,128 +1,290 @@
 import { supabase } from "../supabase";
 
-export const fetchMenuItems = async () => {
-  try {
-    const { data, error } = await supabase.from("items").select("*");
-    if (error) {
-      console.error("Error fetching menu items:", error);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching menu items:", err);
-    return [];
-  }
-};
+// NORMALIZE MENU ITEM
+const normalizeMenuItem = (item = {}) => ({
+  id: item.id,
 
-export const fetchMenuItemsByRestaurant = async (restaurantId) => {
-  try {
-    if (!restaurantId) {
-      return [];
-    }
+  name:
+    item.item_name ||
+    "",
 
-    const { data, error } = await supabase
-      .from("items")
-      .select("*")
-      .eq("restaurant_id", restaurantId)
-      .order("item_name", { ascending: true });
+  image_url:
+    item.image_url ||
+    "",
 
-    if (error) {
-      console.error(`Error fetching items for restaurant ${restaurantId}:`, error);
-      return [];
-    }
+  description:
+    item.description ||
+    "",
 
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching menu items by restaurant:", err);
-    return [];
-  }
-};
+  ingredients:
+    item.ingredients ||
+    "",
 
-export const fetchMenuItemsByIds = async (itemIds = []) => {
-  if (!itemIds.length) {
-    return [];
-  }
+  price:
+    Number(item.price) || 0,
 
-  try {
-    const { data, error } = await supabase
-      .from("items")
-      .select("*")
-      .in("id", itemIds);
+  restaurant_id:
+    item.restaurant_id || null,
 
-    if (error) {
-      console.error("Error fetching menu items by ids:", error);
-      return [];
-    }
+  category_id:
+    item.category_id || null,
 
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching menu items by ids:", err);
-    return [];
-  }
-};
+  // THIS IS THE IMPORTANT FIX
+  category:
+    item.category?.category_name ||
+    "Main Course",
+});
 
-export const searchMenuItems = async (query) => {
-  if (!query) {
-    return [];
-  }
+// FETCH ALL MENU ITEMS
+export const fetchMenuItems =
+  async () => {
+    try {
 
-  try {
-    const { data, error } = await supabase
-      .from("items")
-      .select("*")
-      .ilike("item_name", `%${query}%`)
-      .or(`description.ilike.%${query}%, ingredients.ilike.%${query}%`)
-      .order("item_name", { ascending: true });
+      const {
+        data,
+        error,
+      } = await supabase
 
-    if (error) {
-      console.error("Error searching menu items:", error);
-      return [];
-    }
+        .from("items")
 
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error searching menu items:", err);
-    return [];
-  }
-};
+        .select(`
+          *,
+          category (
+            id,
+            category_name
+          )
+        `);
 
-export const fetchCategories = async () => {
-  try {
-    const { data, error } = await supabase.from("category").select("*").order("category_name", { ascending: true });
-    if (error) {
-      console.error("Error fetching categories:", error);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching categories:", err);
-    return [];
-  }
-};
+      if (error) {
+        console.error(
+          "Error fetching menu items:",
+          error
+        );
 
-export const fetchMenuItemsByRestaurantName = async (restaurantName) => {
-  if (!restaurantName) {
-    return [];
-  }
+        return [];
+      }
 
-  try {
-    const searchValue = restaurantName.trim();
-    const { data, error } = await supabase
-      .from("items")
-      .select("*")
-      .or(`restaurant_name.ilike.%${searchValue}%,name.ilike.%${searchValue}%`)
-      .order("item_name", { ascending: true });
-
-    if (error) {
-      console.error(
-        `Error fetching items for restaurant name ${restaurantName}:", error`
+      return (data || []).map(
+        normalizeMenuItem
       );
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error fetching menu items:",
+        err
+      );
+
       return [];
     }
+  };
 
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching items by restaurant name:", err);
-    return [];
-  }
-};
+// FETCH ITEMS BY RESTAURANT
+export const fetchMenuItemsByRestaurant =
+  async (restaurantId) => {
+
+    try {
+
+      if (!restaurantId)
+        return [];
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from("items")
+
+        .select(`
+          *,
+          category (
+            id,
+            category_name
+          )
+        `)
+
+        .eq(
+          "restaurant_id",
+          restaurantId
+        )
+
+        .order(
+          "item_name",
+          {
+            ascending: true,
+          }
+        );
+
+      if (error) {
+
+        console.error(
+          "Error fetching restaurant menu:",
+          error
+        );
+
+        return [];
+      }
+
+      return (data || []).map(
+        normalizeMenuItem
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error fetching restaurant menu:",
+        err
+      );
+
+      return [];
+    }
+  };
+
+// FETCH MENU ITEMS BY IDS
+export const fetchMenuItemsByIds =
+  async (itemIds = []) => {
+
+    try {
+
+      if (!itemIds.length)
+        return [];
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from("items")
+
+        .select(`
+          *,
+          category (
+            id,
+            category_name
+          )
+        `)
+
+        .in("id", itemIds);
+
+      if (error) {
+
+        console.error(
+          "Error fetching menu items by ids:",
+          error
+        );
+
+        return [];
+      }
+
+      return (data || []).map(
+        normalizeMenuItem
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error fetching items by ids:",
+        err
+      );
+
+      return [];
+    }
+  };
+
+// SEARCH MENU ITEMS
+export const searchMenuItems =
+  async (query) => {
+
+    try {
+
+      if (!query)
+        return [];
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from("items")
+
+        .select(`
+          *,
+          category (
+            id,
+            category_name
+          )
+        `)
+
+        .or(
+          `item_name.ilike.%${query}%,description.ilike.%${query}%`
+        );
+
+      if (error) {
+
+        console.error(
+          "Error searching menu items:",
+          error
+        );
+
+        return [];
+      }
+
+      return (data || []).map(
+        normalizeMenuItem
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error searching items:",
+        err
+      );
+
+      return [];
+    }
+  };
+
+// FETCH CATEGORIES
+export const fetchCategories =
+  async () => {
+
+    try {
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from("category")
+
+        .select("*")
+
+        .order(
+          "category_name",
+          {
+            ascending: true,
+          }
+        );
+
+      if (error) {
+
+        console.error(
+          "Error fetching categories:",
+          error
+        );
+
+        return [];
+      }
+
+      return data || [];
+
+    } catch (err) {
+
+      console.error(
+        "Unexpected error fetching categories:",
+        err
+      );
+
+      return [];
+    }
+  };

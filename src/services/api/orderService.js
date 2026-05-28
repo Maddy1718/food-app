@@ -1,113 +1,430 @@
 import { supabase } from "../supabase";
 
-export const createPlacedOrder = async (orderData) => {
-  try {
-    const { data, error } = await supabase.from("placed_order").insert([orderData]).select();
-    if (error) {
-      console.error("Error creating placed order:", error);
+// RESOLVE CUSTOMER ID
+const resolveCustomerId =
+  async ({
+    authId,
+    email,
+  }) => {
+
+    try {
+
+      // FIND BY AUTH ID
+      if (authId) {
+
+        const {
+          data: customerByAuth,
+        } = await supabase
+
+          .from("customer")
+
+          .select("*")
+
+          .eq(
+            "auth_id",
+            authId
+          )
+
+          .single();
+
+        if (
+          customerByAuth
+        ) {
+
+          return customerByAuth.id;
+        }
+      }
+
+      // FIND BY EMAIL
+      if (email) {
+
+        const {
+          data: customerByEmail,
+        } = await supabase
+
+          .from("customer")
+
+          .select("*")
+
+          .eq(
+            "email",
+            email
+          )
+
+          .single();
+
+        // EMAIL EXISTS
+        if (
+          customerByEmail
+        ) {
+
+          // UPDATE AUTH ID IF EMPTY
+          if (
+            !customerByEmail.auth_id &&
+            authId
+          ) {
+
+            await supabase
+
+              .from("customer")
+
+              .update({
+                auth_id:
+                  authId,
+              })
+
+              .eq(
+                "id",
+                customerByEmail.id
+              );
+          }
+
+          return customerByEmail.id;
+        }
+
+        // CREATE NEW CUSTOMER
+        const {
+          data: newCustomer,
+          error: createError,
+        } = await supabase
+
+          .from("customer")
+
+          .insert([
+            {
+              auth_id:
+                authId,
+
+              email:
+                email,
+
+              customer_name:
+                email.split(
+                  "@"
+                )[0],
+            },
+          ])
+
+          .select()
+
+          .single();
+
+        if (createError) {
+
+          console.error(
+            "Create customer error:",
+            createError
+          );
+
+          return null;
+        }
+
+        return newCustomer.id;
+      }
+
+      return null;
+
+    } catch (err) {
+
+      console.error(
+        "Resolve customer crash:",
+        err
+      );
+
       return null;
     }
-    return data?.[0] || null;
-  } catch (err) {
-    console.error("Unexpected error creating placed order:", err);
-    return null;
-  }
-};
+  };
 
-export const fetchPlacedOrders = async (customerId) => {
-  try {
-    const { data, error } = await supabase
-      .from("placed_order")
-      .select("*")
-      .eq("customer_id", customerId)
-      .order("created_at", { ascending: false });
+// CREATE ORDER
+export const createOrder =
+  async ({
+    user,
+    cartItems,
+  }) => {
 
-    if (error) {
-      console.error("Error fetching placed orders:", error);
-      return [];
-    }
+    try {
 
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching placed orders:", err);
-    return [];
-  }
-};
+      // LOGIN CHECK
+      if (!user) {
 
-export const fetchAllPlacedOrders = async () => {
-  try {
-    const { data, error } = await supabase.from("placed_order").select("*").order("created_at", { ascending: false });
-    if (error) {
-      console.error("Error fetching all placed orders:", error);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching all placed orders:", err);
-    return [];
-  }
-};
+        alert(
+          "Please login first"
+        );
 
-export const updatePlacedOrderStatus = async (orderId, status) => {
-  try {
-    const { data, error } = await supabase
-      .from("placed_order")
-      .update({ order_status: status })
-      .eq("id", orderId)
-      .select();
+        return null;
+      }
 
-    if (error) {
-      console.error("Error updating placed order status:", error);
+      // EMPTY CART CHECK
+      if (
+        !cartItems?.length
+      ) {
+
+        alert(
+          "Cart is empty"
+        );
+
+        return null;
+      }
+
+      // CUSTOMER ID
+      const customerId =
+        await resolveCustomerId({
+          authId:
+            user.id,
+          email:
+            user.email,
+        });
+
+      if (!customerId) {
+
+        alert(
+          "Customer record not found"
+        );
+
+        return null;
+      }
+
+      // PRICE CALCULATIONS
+      const subtotal =
+        cartItems.reduce(
+          (sum, item) =>
+            sum +
+            Number(
+              item.price
+            ) *
+              item.quantity,
+          0
+        );
+
+      const deliveryFee =
+        subtotal > 0
+          ? 40
+          : 0;
+
+      const platformFee =
+        5;
+
+      const gstAmount =
+        subtotal * 0.05;
+
+      const packingCharge =
+        10;
+
+      const totalPrice =
+        subtotal +
+        deliveryFee +
+        platformFee +
+        gstAmount +
+        packingCharge;
+
+      // RESTAURANT
+      const restaurantId =
+        cartItems[0]
+          ?.restaurant_id;
+
+      // CREATE ORDER
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from(
+          "placed_order"
+        )
+
+        .insert([
+          {
+            customer_email:
+              user.email,
+
+            restaurant_id:
+              restaurantId,
+
+            customer_id:
+              customerId,
+
+            order_time:
+              new Date(),
+
+            delivery_address:
+              "Customer Address",
+
+            price:
+              subtotal,
+
+            discount:
+              0,
+
+            total_price:
+              totalPrice,
+
+            delivery_fee:
+              deliveryFee,
+
+            platform_fee:
+              platformFee,
+
+            gst_amount:
+              gstAmount,
+
+            packing_charge:
+              packingCharge,
+
+            order_status:
+              "Pending",
+          },
+        ])
+
+        .select()
+
+        .single();
+
+      // ORDER ERROR
+      if (error) {
+
+        console.error(
+          "Create order error:",
+          error
+        );
+
+        alert(
+          error.message
+        );
+
+        return null;
+      }
+
+      return data;
+
+    } catch (err) {
+
+      console.error(
+        "Create order crash:",
+        err
+      );
+
+      alert(
+        err.message
+      );
+
       return null;
     }
+  };
 
-    return data?.[0] || null;
-  } catch (err) {
-    console.error("Unexpected error updating placed order:", err);
-    return null;
-  }
-};
+// FETCH ORDERS
+export const fetchOrders =
+  async (user) => {
 
-export const fetchOrders = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Error fetching orders:", error);
+    try {
+
+      if (!user?.email) {
+        return [];
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from(
+          "placed_order"
+        )
+
+        .select(`
+          *,
+          restaurant (
+            id,
+            restaurant_name,
+            image_url
+          )
+        `)
+
+        .eq(
+          "customer_email",
+          user.email
+        )
+
+        .order(
+          "order_time",
+          {
+            ascending: false,
+          }
+        );
+
+      if (error) {
+
+        console.error(
+          "Fetch orders error:",
+          error
+        );
+
+        return [];
+      }
+
+      return data || [];
+
+    } catch (err) {
+
+      console.error(
+        "Fetch orders crash:",
+        err
+      );
+
       return [];
     }
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching orders:", err);
-    return [];
-  }
-};
+  };
 
-export const fetchOrderHistory = async () => {
-  try {
-    const { data, error } = await supabase.from("order_history").select("*");
-    if (error) {
-      console.error("Error fetching order history:", error);
-      return [];
+// UPDATE ORDER STATUS
+export const updateOrderStatus =
+  async (
+    orderId,
+    status
+  ) => {
+
+    try {
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from(
+          "placed_order"
+        )
+
+        .update({
+          order_status:
+            status,
+        })
+
+        .eq(
+          "id",
+          orderId
+        )
+
+        .select()
+
+        .single();
+
+      if (error) {
+
+        console.error(
+          "Update order error:",
+          error
+        );
+
+        return null;
+      }
+
+      return data;
+
+    } catch (err) {
+
+      console.error(
+        "Update order crash:",
+        err
+      );
+
+      return null;
     }
-    return data || [];
-  } catch (err) {
-    console.error("Unexpected error fetching order history:", err);
-    return [];
-  }
-};
-
-export const createOrder = async (orderData) => {
-  return await createPlacedOrder(orderData);
-};
-
-export const fetchAllOrders = async () => {
-  return await fetchAllPlacedOrders();
-};
-
-export const updateOrderStatus = async (orderId, status) => {
-  return await updatePlacedOrderStatus(orderId, status);
-};
+  };

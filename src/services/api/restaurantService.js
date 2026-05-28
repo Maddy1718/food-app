@@ -1,13 +1,18 @@
 import { supabase } from "../supabase";
+import { normalizeRestaurant } from "../../utils/normalizers";
 
 export const fetchRestaurants = async () => {
   try {
-    const { data, error } = await supabase.from("restaurant").select("*");
+    const { data, error } = await supabase
+      .from("restaurant")
+      .select("*");
+
     if (error) {
       console.error("Error fetching restaurants:", error);
       return [];
     }
-    return data || [];
+
+    return (data || []).map(normalizeRestaurant);
   } catch (err) {
     console.error("Unexpected error fetching restaurants:", err);
     return [];
@@ -16,15 +21,20 @@ export const fetchRestaurants = async () => {
 
 export const fetchUniqueBrands = async () => {
   try {
-    const allRestaurants = await fetchRestaurants();
+    const restaurants = await fetchRestaurants();
+
     const brandMap = new Map();
-    allRestaurants.forEach((restaurant) => {
-      const brandName = restaurant.restaurant_name?.trim() || restaurant.name || `Restaurant ${restaurant.id}`;
-      const brandKey = brandName.toLowerCase();
+
+    restaurants.forEach((restaurant) => {
+      const brandKey = restaurant.name
+        ?.trim()
+        .toLowerCase();
+
       if (!brandMap.has(brandKey)) {
         brandMap.set(brandKey, restaurant);
       }
     });
+
     return Array.from(brandMap.values());
   } catch (err) {
     console.error("Unexpected error fetching unique brands:", err);
@@ -41,13 +51,19 @@ export const fetchBranchesByName = async (restaurantName) => {
       .order("id", { ascending: true });
 
     if (error) {
-      console.error(`Error fetching branches for ${restaurantName}:`, error);
+      console.error(
+        `Error fetching branches for ${restaurantName}:`,
+        error
+      );
       return [];
     }
 
-    return data || [];
+    return (data || []).map(normalizeRestaurant);
   } catch (err) {
-    console.error("Unexpected error fetching branches:", err);
+    console.error(
+      "Unexpected error fetching branches:",
+      err
+    );
     return [];
   }
 };
@@ -61,18 +77,26 @@ export const fetchRestaurantById = async (id) => {
       .single();
 
     if (error) {
-      console.error("Error fetching restaurant by id:", error);
+      console.error(
+        "Error fetching restaurant by id:",
+        error
+      );
       return null;
     }
 
-    return data;
+    return normalizeRestaurant(data);
   } catch (err) {
-    console.error("Unexpected error fetching restaurant by id:", err);
+    console.error(
+      "Unexpected error fetching restaurant by id:",
+      err
+    );
     return null;
   }
 };
 
-export const fetchRestaurantsByCategory = async (categoryName) => {
+export const fetchRestaurantsByCategory = async (
+  categoryName
+) => {
   try {
     const { data, error } = await supabase
       .from("restaurant")
@@ -80,13 +104,19 @@ export const fetchRestaurantsByCategory = async (categoryName) => {
       .ilike("category", `%${categoryName}%`);
 
     if (error) {
-      console.error(`Error fetching restaurants by category ${categoryName}:`, error);
+      console.error(
+        `Error fetching restaurants by category ${categoryName}:`,
+        error
+      );
       return [];
     }
 
-    return data || [];
+    return (data || []).map(normalizeRestaurant);
   } catch (err) {
-    console.error("Unexpected error fetching restaurants by category:", err);
+    console.error(
+      "Unexpected error fetching restaurants by category:",
+      err
+    );
     return [];
   }
 };
