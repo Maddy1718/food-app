@@ -1,0 +1,9 @@
+.deliveries-page { display:grid; gap:24px; }
+.deliveries-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:25px; }
+.delivery-card { background: var(--panel, rgba(15,23,42,0.95)); border-radius:24px; padding:14px; border:1px solid var(--border, rgba(148,163,184,0.14)); box-shadow:0 18px 40px rgba(15,23,42,0.16); backdrop-filter:blur(18px); }
+.delivery-card img { width:100%; height:220px; object-fit:cover; border-radius:12px; }
+.delivery-card p { margin-bottom:8px; color: var(--muted, #94a3b8); }
+.delivery-action-btn { width:100%; margin-top:12px; padding:12px; border:none; border-radius:10px; color:#fff; font-weight:bold; cursor:pointer; }
+.delivery-action-btn--reach { background:#3b82f6; }
+.delivery-action-btn--pickup { background:#f97316; }
+.delivery-action-btn--delivered { background:#22c55e; }

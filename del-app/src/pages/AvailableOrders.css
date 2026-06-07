@@ -1,0 +1,2 @@
+.available-orders-page { display:grid; gap:24px; }
+.available-orders-card { padding:18px; border-radius:24px; background: var(--panel, rgba(15,23,42,0.88)); border:1px solid var(--border, rgba(148,163,184,0.14)); color: var(--text, #eff6ff); box-shadow:0 18px 40px rgba(15,23,42,0.16); }
